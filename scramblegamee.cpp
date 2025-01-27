@@ -162,4 +162,4 @@ int main() {
     playGame(words, wordCount, highScoreFile, level);
 
     return 0;
-}
+} 
