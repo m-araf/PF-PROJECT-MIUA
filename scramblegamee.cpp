@@ -3,7 +3,183 @@
 #include <string>
 #include <cstdlib>
 #include <ctime>
+#include <sstream>
+#include <regex>
+#include <vector>
+#include <conio.h> // For getch() to mask password input
 using namespace std;
+
+// Function to submit feedback with username
+void submitFeedback() {
+    string username, feedback;
+    ofstream file("../feedback.txt", ios::app);
+
+    if (!file) {
+        cerr << "Error: Unable to open feedback file.\n";
+        return;
+    }
+
+    cout << "\n========== Feedback Form ==========\n";
+    cout << "We'd love to hear your thoughts about the Word Scramble game!\n";
+
+    // Prompt for username
+    cout << "Enter your username: ";
+    cin.ignore(); // Clear input buffer
+    getline(cin, username);
+
+    // Prompt for feedback
+    cout << "Please write your feedback below (Press Enter when done):\n";
+    getline(cin, feedback);
+
+    // Save username and feedback to the file
+    file << "Username: " << username << "\n";
+    file << "Feedback: " << feedback << "\n";
+    file << "------------------------------------\n";
+    file.close();
+
+    cout << "Thank you for your feedback! It has been submitted successfully.\n";
+}
+
+// Function to check if a username exists in the file
+bool isUserExists(const string& username) {
+    ifstream file("../users.txt");
+    string line;
+    while (getline(file, line)) {
+        stringstream ss(line);
+        string storedUsername;
+        getline(ss, storedUsername, ':');
+        if (storedUsername == username) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Function to validate login credentials
+bool validateLogin(const string& username, const string& password) {
+    ifstream file("../users.txt");
+    string line;
+    while (getline(file, line)) {
+        stringstream ss(line);
+        string storedUsername, storedPassword;
+        getline(ss, storedUsername, ':');
+        getline(ss, storedPassword, ':');
+        if (storedUsername == username && storedPassword == password) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Function to mask password input
+string getMaskedInput() {
+    string password;
+    char ch;
+    while ((ch = _getch()) != '\r') { // Enter key
+        if (ch == '\b' && !password.empty()) { // Handle backspace
+            cout << "\b \b";
+            password.pop_back();
+        }
+        else if (isprint(ch)) {
+            cout << "*";
+            password += ch;
+        }
+    }
+    cout << endl;
+    return password;
+}
+
+// Function to validate email
+bool isValidEmail(const string& email) {
+    const regex emailPattern("^[a-zA-Z0-9._%+-]+@gmail\\.com$");
+    return regex_match(email, emailPattern);
+}
+
+void signup() {
+    cout << endl;
+    cout << "========== Sign up ==========\n";
+    string username, password, email;
+    cout << "Enter a username: ";
+    cin >> username;
+
+    if (isUserExists(username)) {
+        cout << "Username already exists! Try a different one.\n";
+        return;
+    }
+
+    do {
+        cout << "Enter a password (at least 8 characters): ";
+        password = getMaskedInput();
+        if (password.length() < 8) {
+            cout << "Password must be at least 8 characters long.\n";
+        }
+    } while (password.length() < 8);
+
+    do {
+        cout << "Enter your email (must end with '@gmail.com'): ";
+        cin >> email;
+        if (!isValidEmail(email)) {
+            cout << "Invalid email format. Please try again.\n";
+        }
+    } while (!isValidEmail(email));
+
+    ofstream file("../users.txt", ios::app);
+    if (file) {
+        file << username << ":" << password << ":" << email << "\n";
+        cout << "Signup successful! You can now log in.\n";
+    }
+    else {
+        cerr << "Error: Unable to open file.\n";
+    }
+}
+
+// Function to handle login
+bool login() {
+    cout << endl;
+    cout << "========== Login ==========\n";
+    string username, password;
+    cout << "Enter your username: ";
+    cin >> username;
+
+    cout << "Enter your password: ";
+    password = getMaskedInput();
+
+    if (validateLogin(username, password)) {
+        cout << "Login successful! Welcome, " << username << ".\n";
+        return true;
+    }
+    else {
+        cout << "Invalid credentials. Please try again.\n";
+        return false;
+    }
+}
+
+// Authentication menu
+bool handleAuthentication() {
+    int choice;
+    do {
+        cout << "1. Login\n";
+        cout << "2. Signup\n";
+        cout << "3. Exit\n";
+        cout << "Enter your choice: ";
+        cin >> choice;
+
+        switch (choice) {
+        case 1:
+            if (login()) return true; // Successful login
+            break;
+        case 2:
+            signup();
+            break;
+        case 3:
+            cout << "Exiting...\n";
+            return false;
+        default:
+            cout << "Invalid choice. Please try again.\n";
+        }
+    } while (choice != 3);
+    return false;
+}
 
 // Function to scramble a word
 string scrambleWord(const string& word) {
@@ -17,32 +193,39 @@ string scrambleWord(const string& word) {
     return scrambled;
 }
 
-// Function to load words from a file based on level
-int loadWordsByLevel(const string& filename, string words[], int maxWords, int level) {
-    ifstream file("../users.txt");  // Correct the path to the file here
+// Function to load words from a file based on category and level
+int loadWordsByCategoryAndLevel(const string& filename, vector<string>& words, int level, const string& category) {
+    ifstream file(filename);
     if (!file) {
         cerr << "Error: Unable to open file '" << filename << "'.\n";
         return 0; // Return 0 words loaded
     }
 
-    int count = 0;
     string word;
-    while (file >> word && count < maxWords) {
-        if ((level == 1 && word.length() == 3) ||      // Easy: 3 letters
-            (level == 2 && word.length() == 4) ||      // Medium: 4 letters
-            (level == 3 && word.length() >= 5)) {      // Hard: 5+ letters
-            words[count++] = word;
+    while (getline(file, word)) {
+        stringstream ss(word);
+        string storedCategory;
+        string storedWord;
+        getline(ss, storedCategory, ','); // Assume words are stored with categories
+        getline(ss, storedWord);
+
+        // Load word based on category and level
+        if (category.empty() || storedCategory == category) {
+            if ((level == 1 && storedWord.length() == 3) ||      // Easy: 3 letters
+                (level == 2 && storedWord.length() == 4) ||      // Medium: 4 letters
+                (level == 3 && storedWord.length() >= 5)) {      // Hard: 5+ letters
+                words.push_back(storedWord);
+            }
         }
     }
 
     file.close();
-    return count; // Return the number of words loaded
+    return words.size(); // Return the number of words loaded
 }
 
 // Function to load high score from a file
 int loadHighScore(const string& filename) {
-    ifstream file("../users.txt");
-
+    ifstream file(filename);
     int highScore = 0;
     if (file) {
         file >> highScore;
@@ -53,58 +236,40 @@ int loadHighScore(const string& filename) {
 
 // Function to save high score to a file
 void saveHighScore(const string& filename, int score) {
-    ofstream file("../users.txt");
+    ofstream file(filename);
     if (file) {
         file << score;
     }
     file.close();
 }
 
-// Function to authenticate the user (login)
-bool authenticateUser(const string& username, const string& password, const string& usersFile) {
-    ifstream file("../users.txt");
-    string storedUsername, storedPassword;
-
-    while (file >> storedUsername >> storedPassword) {
-        if (storedUsername == username && storedPassword == password) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-// Function to handle login
-bool login(const string& usersFile) {
-    string username, password;
-
-    cout << "Please log in to play.\n";
-    cout << "Username: ";
-    cin >> username;
-    cout << "Password: ";
-    cin >> password;
-
-    if (authenticateUser(username, password, usersFile)) {
-        cout << "Login successful! Welcome, " << username << ".\n";
-        return true;
-    }
-    else {
-        cout << "Invalid credentials. Please try again.\n";
-        return false;
-    }
-}
-
 // Function to start the game for a specific set of words
-void playGame(const string words[], int wordCount, const string& highScoreFile, int level) {
+bool playGame(const vector<string>& words, const string& highScoreFile, int level) {
     srand(static_cast<unsigned int>(time(0))); // Seed random number generator
     int highScore = loadHighScore(highScoreFile);
     int score = 0;
     const int maxAttempts = 3;
 
+    vector<bool> usedWords(words.size(), false); // Track used words
+    int usedCount = 0; // Number of words used so far
+
     cout << "High Score: " << highScore << "\n";
 
     while (true) {
-        string originalWord = words[rand() % wordCount]; // Pick a random word
+        if (usedCount == words.size()) {
+            cout << "All words for this level have been used! No more words to play.\n";
+            break;
+        }
+
+        int randomIndex;
+        do {
+            randomIndex = rand() % words.size();
+        } while (usedWords[randomIndex]); // Pick a new word if it's already used
+
+        usedWords[randomIndex] = true; // Mark the word as used
+        usedCount++;
+
+        string originalWord = words[randomIndex];
         string scrambledWord = scrambleWord(originalWord);
         int attempts = 0;
 
@@ -122,7 +287,7 @@ void playGame(const string words[], int wordCount, const string& highScoreFile, 
                     cout << "Congratulations! You set a new high score!\n";
                     saveHighScore(highScoreFile, score);
                 }
-                return;
+                return false;
             }
 
             if (userGuess == originalWord) {
@@ -139,6 +304,17 @@ void playGame(const string words[], int wordCount, const string& highScoreFile, 
             else {
                 attempts++;
                 cout << "Wrong! Try again. Attempts left: " << (maxAttempts - attempts) << "\n";
+
+                // Offer a hint after 2 wrong attempts
+                if (attempts == 2) {
+                    char choice;
+                    cout << "Would you like a hint? (y/n): ";
+                    cin >> choice;
+                    if (choice == 'y' || choice == 'Y') {
+                        cout << "Hint: The first letter is '"
+                            << originalWord[0] << "'.\n";
+                    }
+                }
             }
         }
 
@@ -151,58 +327,226 @@ void playGame(const string words[], int wordCount, const string& highScoreFile, 
                 cout << "Congratulations! You set a new high score!\n";
                 saveHighScore(highScoreFile, score);
             }
-            return;
+
+            char replayChoice;
+            cout << "Would you like to replay the game? (y/n): ";
+            cin >> replayChoice;
+            return (replayChoice == 'y' || replayChoice == 'Y');
         }
 
         cout << "Current Score: " << score << "\n\n";
     }
+
+    return false;
 }
 
 int main() {
     system("Color E");
 
+    cout << "\n==========================================\n";
+    cout << "      Welcome to the Word Scramble Game!   \n";
+    cout << "==========================================\n";
+    cout << "Log in to continue or sign up to join the fun!\n";
+    cout << "Save your progress and aim for the high score!\n\n";
+
+    // Authentication
+    if (!handleAuthentication()) {
+        return 0; // Exit if user does not log in or sign up
+    }
+
     // File paths
     const string wordFile = "../words.txt";
     const string highScoreFile = "../highscore.txt";
-    const string usersFile = "../users.txt"; // Path to the user credentials file
 
-    // Display welcome message
-    cout << "Welcome to the Word Scramble Game!\n";
+    // Main menu
+    int choice;
+    do {
+        cout << "\n========== Main Menu ==========\n";
+        cout << "Welcome to the Word Scramble Game!\n";
+        cout << "1. Play\n";
+        cout << "2. Highscore\n";
+        cout << "3. About Us\n";
+        cout << "4. Feedback Form\n"; // Feedback option added
+        cout << "5. Exit\n";
+        cout << "Enter your choice: ";
+        cin >> choice;
 
-    // Implement login feature
-    while (!login(usersFile)) {
-        // Keep prompting until login is successful
-    }
+        switch (choice) {
+        case 1: {
+            // Play option
+            cout << endl;
+            cout << "Would you like to play within a category or without a category?\n";
+            cout << "1. Within a category\n";
+            cout << "2. Without a category\n";
+            cout << "Enter your choice: ";
 
-    // Display mode selection after successful login
-    cout << "Choose a difficulty level:\n";
-    cout << "1. Easy (3-letter words)\n";
-    cout << "2. Medium (4-letter words)\n";
-    cout << "3. Hard (5+ letter words)\n";
-    cout << "Enter your choice: ";
+            int playChoice;
+            cin >> playChoice;
 
-    int level;
-    cin >> level;
+            if (playChoice == 1) {
+                // Play within a category
+                cout << endl;
+                cout << "Choose a difficulty level:\n";
+                cout << "1. Easy (3-letter words)\n";
+                cout << "2. Medium (4-letter words)\n";
+                cout << "3. Hard (5+ letter words)\n";
+                cout << "Enter your choice: ";
 
-    if (level < 1 || level > 3) {
-        cerr << "Invalid choice. Please restart the game and select a valid level.\n";
-        return 1;
-    }
+                int level;
+                cin >> level;
 
-    // Load words for the selected level
-    const int maxWords = 100;
-    string words[maxWords];
-    int wordCount = loadWordsByLevel(wordFile, words, maxWords, level);
+                if (level < 1 || level > 3) {
+                    cerr << "Invalid choice. Returning to the main menu.\n";
+                    break;
+                }
 
-    if (wordCount == 0) {
-        cerr << "No words available for the selected level. Please update '" << wordFile << "' with suitable words.\n";
-        return 1;
-    }
+                // Ask user for a category
+                cout << "Choose a category:\n";
+                cout << "1. Animals\n";
+                cout << "2. Objects\n";
+                cout << "3. Food\n"; // Added Food category
+                cout << "Enter your choice: ";
 
-    cout << "Unscramble the word to earn points.\n";
-    cout << "You have 3 chances for each word. Type 'exit' to quit the game early.\n\n";
+                int categoryChoice;
+                cin >> categoryChoice;
 
-    playGame(words, wordCount, highScoreFile, level);
+                string category;
+                switch (categoryChoice) {
+                case 1:
+                    category = "Animals";
+                    break;
+                case 2:
+                    category = "Objects";
+                    break;
+                case 3:
+                    category = "Food";
+                    break;
+                default:
+                    cerr << "Invalid category. Returning to the main menu.\n";
+                    break;
+                }
+
+                // Load words for the selected category and level
+                vector<string> words;
+                int wordCount = loadWordsByCategoryAndLevel(wordFile, words, level, category);
+
+                if (wordCount == 0) {
+                    cerr << "No words available for the selected category and level. Please update '" << wordFile << "' with suitable words.\n";
+                    break;
+                }
+
+                cout << "Unscramble the word to earn points.\n";
+                cout << "You have 3 chances for each word. Type 'exit' to quit the game early.\n\n";
+
+                bool replay;
+                do {
+                    replay = playGame(words, highScoreFile, level);
+                } while (replay);
+
+            }
+            else if (playChoice == 2) {
+                // Play without a category
+                cout << endl;
+                cout << "Choose a difficulty level:\n";
+                cout << "1. Easy (3-letter words)\n";
+                cout << "2. Medium (4-letter words)\n";
+                cout << "3. Hard (5+ letter words)\n";
+                cout << "Enter your choice: ";
+
+                int level;
+                cin >> level;
+
+                if (level < 1 || level > 3) {
+                    cerr << "Invalid choice. Returning to the main menu.\n";
+                    break;
+                }
+
+                // Load words for all categories at the selected level
+                vector<string> words;
+                ifstream file(wordFile);
+                if (!file) {
+                    cerr << "Error: Unable to open file '" << wordFile << "'.\n";
+                    break;
+                }
+
+                string line;
+                while (getline(file, line)) {
+                    stringstream ss(line);
+                    string storedCategory;
+                    string storedWord;
+                    getline(ss, storedCategory, ',');
+                    getline(ss, storedWord);
+
+                    if ((level == 1 && storedWord.length() == 3) ||
+                        (level == 2 && storedWord.length() == 4) ||
+                        (level == 3 && storedWord.length() >= 5)) {
+                        words.push_back(storedWord);
+                    }
+                }
+
+                file.close();
+
+                if (words.empty()) {
+                    cerr << "No words available for the selected level. Please update '" << wordFile << "' with suitable words.\n";
+                    break;
+                }
+
+                cout << "Unscramble the word to earn points.\n";
+                cout << "You have 3 chances for each word. Type 'exit' to quit the game early.\n\n";
+
+                bool replay;
+                do {
+                    replay = playGame(words, highScoreFile, level);
+                } while (replay);
+
+            }
+            else {
+                cerr << "Invalid choice. Returning to the main menu.\n";
+            }
+
+            break;
+        }
+        case 2: {
+            // Highscore
+            int highScore = loadHighScore(highScoreFile);
+            cout << "High Score: " << highScore << "\n";
+
+            char resetChoice;
+            cout << "Would you like to reset the high score? (y/n): ";
+            cin >> resetChoice;
+
+            if (resetChoice == 'y' || resetChoice == 'Y') {
+                saveHighScore(highScoreFile, 0);
+                cout << "High score has been reset.\n";
+            }
+
+            break;
+        }
+        case 3: {
+            // About Us
+            cout << endl;
+            cout << "About the Game:\n";
+            cout << "Welcome to Word Scramble! Unscramble the words to score points.\n";
+            cout << "Choose a difficulty level and challenge yourself!\n";
+            cout << "You can view and reset your high score anytime.\n";
+            break;
+        }
+        case 4: {
+            // Feedback Form
+            submitFeedback();
+            break;
+        }
+        case 5: {
+            cout << "Thank you for playing Word Scramble! Goodbye!\n";
+            break;
+        }
+        default: {
+            cerr << "Invalid choice. Please try again.\n";
+            break;
+        }
+        }
+
+    } while (choice != 5);
 
     return 0;
 }
