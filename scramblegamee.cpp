@@ -59,8 +59,18 @@ void saveHighScore(const string& filename, int score) {
     file.close();
 }
 
+// Function to delete the high score file
+void deleteHighScore(const string& filename) {
+    if (remove(filename.c_str()) == 0) {
+        cout << "High score deleted successfully!\n";
+    }
+    else {
+        cerr << "Error: Unable to delete high score file.\n";
+    }
+}
+
 // Function to start the game for a specific set of words
-void playGame(const string words[], int wordCount, const string& highScoreFile, int level) {
+bool playGame(const string words[], int wordCount, const string& highScoreFile, int level) {
     srand(static_cast<unsigned int>(time(0))); // Seed random number generator
     int highScore = loadHighScore(highScoreFile);
     int score = 0;
@@ -87,7 +97,7 @@ void playGame(const string words[], int wordCount, const string& highScoreFile, 
                     cout << "Congratulations! You set a new high score!\n";
                     saveHighScore(highScoreFile, score);
                 }
-                return;
+                return false;
             }
 
             if (userGuess == originalWord) {
@@ -116,11 +126,33 @@ void playGame(const string words[], int wordCount, const string& highScoreFile, 
                 cout << "Congratulations! You set a new high score!\n";
                 saveHighScore(highScoreFile, score);
             }
-            return;
+
+            // Ask the user if they want to replay or go to the main menu
+            cout << "Do you want to replay the game? (y/n): ";
+            char replayChoice;
+            cin >> replayChoice;
+
+            if (replayChoice == 'y' || replayChoice == 'Y') {
+                return true; // Replay the game
+            }
+            else {
+                return false; // Go back to the main menu
+            }
         }
 
         cout << "Current Score: " << score << "\n\n";
     }
+}
+
+void displayAbout() {
+    cout << "\n--- About Us ---\n";
+    cout << "Welcome to the Word Scramble Game!\n";
+    cout << "In this game, you will test your vocabulary and quick-thinking skills.\n";
+    cout << "Instructions:\n";
+    cout << "1. Choose a difficulty level.\n";
+    cout << "2. Unscramble the scrambled words to earn points.\n";
+    cout << "3. You have 3 attempts per word. Type 'exit' to quit early.\n";
+    cout << "Enjoy and challenge yourself!\n\n";
 }
 
 int main() {
@@ -130,36 +162,78 @@ int main() {
     const string wordFile = "../words.txt";
     const string highScoreFile = "../highscore.txt";
 
-    // Display welcome message and mode selection
-    cout << "Welcome to the Word Scramble Game!\n";
-    cout << "Choose a difficulty level:\n";
-    cout << "1. Easy (3-letter words)\n";
-    cout << "2. Medium (4-letter words)\n";
-    cout << "3. Hard (5+ letter words)\n";
-    cout << "Enter your choice: ";
+    int choice;
+    do {
+        // Main menu
+        cout << "\n--- Main Menu ---\n";
+        cout << "1. Play Game\n";
+        cout << "2. View Highscore\n";
+        cout << "3. About Us\n";
+        cout << "4. Exit\n";
+        cout << "Enter your choice: ";
+        cin >> choice;
 
-    int level;
-    cin >> level;
+        switch (choice) {
+        case 1: {
+            // Ask if the user wants to go back to the main menu
+            cout << "Choose a difficulty level:\n";
+            cout << "1. Easy (3-letter words)\n";
+            cout << "2. Medium (4-letter words)\n";
+            cout << "3. Hard (5+ letter words)\n";
+            cout << "4. Go back to the main menu\n";
+            cout << "Enter your choice: ";
+            int level;
+            cin >> level;
 
-    if (level < 1 || level > 3) {
-        cerr << "Invalid choice. Please restart the game and select a valid level.\n";
-        return 1;
-    }
+            if (level == 4) {
+                break; // Go back to the main menu
+            }
 
-    // Load words for the selected level
-    const int maxWords = 100;
-    string words[maxWords];
-    int wordCount = loadWordsByLevel(wordFile, words, maxWords, level);
+            if (level < 1 || level > 3) {
+                cerr << "Invalid choice. Returning to the main menu.\n";
+                break;
+            }
 
-    if (wordCount == 0) {
-        cerr << "No words available for the selected level. Please update '" << wordFile << "' with suitable words.\n";
-        return 1;
-    }
+            // Load words for the selected level
+            const int maxWords = 100;
+            string words[maxWords];
+            int wordCount = loadWordsByLevel(wordFile, words, maxWords, level);
 
-    cout << "Unscramble the word to earn points.\n";
-    cout << "You have 3 chances for each word. Type 'exit' to quit the game early.\n\n";
+            if (wordCount == 0) {
+                cerr << "No words available for the selected level. Please update '" << wordFile << "' with suitable words.\n";
+                break;
+            }
 
-    playGame(words, wordCount, highScoreFile, level);
+            // Play the game and handle replay
+            bool replay;
+            do {
+                replay = playGame(words, wordCount, highScoreFile, level);
+            } while (replay);
+
+            break;
+        }
+        case 2: {
+            cout << "\n--- Highscore ---\n";
+            int highScore = loadHighScore(highScoreFile);
+            cout << "High Score: " << highScore << "\n";
+            cout << "Do you want to delete the high score? (y/n): ";
+            char deleteChoice;
+            cin >> deleteChoice;
+            if (deleteChoice == 'y' || deleteChoice == 'Y') {
+                deleteHighScore(highScoreFile);
+            }
+            break;
+        }
+        case 3:
+            displayAbout();
+            break;
+        case 4:
+            cout << "Thank you for playing! Goodbye!\n";
+            break;
+        default:
+            cout << "Invalid choice. Please try again.\n";
+        }
+    } while (choice != 4);
 
     return 0;
-} 
+}
