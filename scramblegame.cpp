@@ -155,8 +155,12 @@ bool login() {
 }
 
 // Authentication menu
+// Authentication menu
 bool handleAuthentication() {
     int choice;
+    int failedAttempts = 0; // Counter for failed login attempts
+    const int maxAttempts = 3; // Max attempts before session expires
+
     do {
         cout << "1. Login\n";
         cout << "2. Signup\n";
@@ -166,7 +170,16 @@ bool handleAuthentication() {
 
         switch (choice) {
         case 1:
-            if (login()) return true; // Successful login
+            if (login()) {
+                return true; // Successful login
+            }
+            else {
+                failedAttempts++;
+                if (failedAttempts >= maxAttempts) {
+                    cout << "Account suspended! Too many failed attempts.\n";
+                    return false; // Exit after too many failed attempts
+                }
+            }
             break;
         case 2:
             signup();
@@ -193,7 +206,6 @@ string scrambleWord(const string& word) {
     return scrambled;
 }
 
-// Function to load words from a file based on category and level
 int loadWordsByCategoryAndLevel(const string& filename, vector<string>& words, int level, const string& category) {
     ifstream file(filename);
     if (!file) {
@@ -209,6 +221,10 @@ int loadWordsByCategoryAndLevel(const string& filename, vector<string>& words, i
         getline(ss, storedCategory, ','); // Assume words are stored with categories
         getline(ss, storedWord);
 
+        // Trim leading and trailing spaces from category and word
+        storedCategory = regex_replace(storedCategory, regex("^\\s+|\\s+$"), "");
+        storedWord = regex_replace(storedWord, regex("^\\s+|\\s+$"), "");
+
         // Load word based on category and level
         if (category.empty() || storedCategory == category) {
             if ((level == 1 && storedWord.length() == 3) ||      // Easy: 3 letters
@@ -220,6 +236,10 @@ int loadWordsByCategoryAndLevel(const string& filename, vector<string>& words, i
     }
 
     file.close();
+
+    // Debugging output to check if any "Food" category words are loaded
+    cout << "Words loaded for category '" << category << "': " << words.size() << endl;
+
     return words.size(); // Return the number of words loaded
 }
 
